@@ -1,6 +1,8 @@
 name: Test
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -9,34 +11,42 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
-      fail-fast: false
-
+        python-version: ["3.10", "3.11", "3.12"]
+    
     steps:
     - uses: actions/checkout@v4
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        allow-prereleases: true
     
     - name: Install uv
       run: |
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-    
-    - name: Load cached venv
-      id: cached-dependencies
-      uses: actions/cache@v3
-      with:
-        path: .venv
-        key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-
-    - name: Create venv and install dependencies
-      if: steps.cached-dependencies.outputs.cache-hit != 'true'
+        
+    - name: Install dependencies
       run: |
+        uv venv
         uv sync --all-extras
-    
+
+    - name: Start SurrealDB
+      uses: surrealdb/setup-surreal@v2
+      with:
+        surrealdb_version: latest
+        surrealdb_port: 8000
+        surrealdb_username: root
+        surrealdb_password: root
+        surrealdb_auth: false
+        surrealdb_log: info
+        surrealdb_additional_args: --allow-all
+
     - name: Run tests
-      run: uv run pytest -v 
+      env:
+        SURREAL_URL: ws://localhost:8000/rpc
+        SURREAL_USER: root
+        SURREAL_PASSWORD: root
+        SURREAL_NAMESPACE: test
+        SURREAL_DATABASE: test
+      run: uv run pytest -v
