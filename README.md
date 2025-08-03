@@ -5,6 +5,7 @@
   
   **A Model Context Protocol (MCP) server that enables AI assistants to interact with SurrealDB databases**
   
+  [![Test](https://github.com/YOUR_USERNAME/surreal-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/YOUR_USERNAME/surreal-mcp/actions/workflows/test.yml)
   [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
   [![FastMCP](https://img.shields.io/badge/FastMCP-2.11%2B-green)](https://github.com/jlowin/fastmcp)
   [![SurrealDB](https://img.shields.io/badge/SurrealDB-2.0%2B-purple)](https://surrealdb.com/)

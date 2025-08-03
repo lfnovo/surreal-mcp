@@ -29,7 +29,24 @@ jobs:
         rm -rf dist
         uv sync --all-extras
 
+    - name: Start SurrealDB
+      uses: surrealdb/setup-surreal@v2
+      with:
+        surrealdb_version: latest
+        surrealdb_port: 8000
+        surrealdb_username: root
+        surrealdb_password: root
+        surrealdb_auth: false
+        surrealdb_log: info
+        surrealdb_additional_args: --allow-all
+
     - name: Run tests
+      env:
+        SURREAL_URL: ws://localhost:8000/rpc
+        SURREAL_USER: root
+        SURREAL_PASSWORD: root
+        SURREAL_NAMESPACE: test
+        SURREAL_DATABASE: test
       run: uv run pytest -v 
 
     - name: Build package
