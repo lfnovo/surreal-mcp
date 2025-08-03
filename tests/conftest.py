@@ -7,7 +7,7 @@ import pytest_asyncio
 import uuid
 from typing import AsyncGenerator, Dict, Any
 
-from database import close_database_pool, repo_query
+from surreal_mcp.database import close_database_pool, repo_query
 
 
 @pytest.fixture(scope="session")

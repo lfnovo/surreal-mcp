@@ -10,7 +10,7 @@ from loguru import logger
 from surrealdb import RecordID
 
 # Import database functions
-from database import (
+from .database import (
     close_database_pool,
     ensure_record_id,
     repo_create,
