@@ -11,6 +11,10 @@
   [![SurrealDB](https://img.shields.io/badge/SurrealDB-2.0%2B-purple)](https://surrealdb.com/)
 </div>
 
+<a href="https://glama.ai/mcp/servers/@lfnovo/surreal-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@lfnovo/surreal-mcp/badge" alt="surreal-mcp MCP server" />
+</a>
+
 ## =� Overview
 
 The SurrealDB MCP Server bridges the gap between AI assistants and SurrealDB, providing a standardized interface for database operations through the Model Context Protocol. This enables LLMs to:
@@ -38,7 +42,7 @@ The SurrealDB MCP Server bridges the gap between AI assistants and SurrealDB, pr
 - SurrealDB instance (local or remote)
 - MCP-compatible client (Claude Desktop, MCP CLI, etc.)
 
-## =� Installation
+## =� Installation
 
 ### Using uvx (Simplest - No Installation Required)
 
@@ -88,7 +92,7 @@ surreal-mcp
 python -m surreal_mcp
 ```
 
-## � Configuration
+## � Configuration
 
 The server requires the following environment variables:
 
@@ -314,7 +318,7 @@ products = insert("product", [
 query("UPDATE product SET on_sale = true WHERE category = 'Electronics'")
 ```
 
-## <� Architecture
+## <� Architecture
 
 The server is built with:
 - **FastMCP**: Simplified MCP server implementation
@@ -386,7 +390,7 @@ async def test_create_user(clean_db, sample_user_data):
     assert result["data"]["email"] == sample_user_data["email"]
 ```
 
-## > Contributing
+## > Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
@@ -410,10 +414,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - =� Email: your.email@example.com
 - =� Discord: [Join our server](https://discord.gg/yourserver)
-- = Issues: [GitHub Issues](https://github.com/yourusername/surreal-mcp/issues)
+- = Issues: [GitHub Issues](https://github.com/yourusername/surreal-mcp/issues)
 
 ---
 
 <div align="center">
-  Made with d for the SurrealDB and MCP communities
+  Made with d for the SurrealDB and MCP communities
 </div>
