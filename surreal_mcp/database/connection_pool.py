@@ -274,9 +274,83 @@ async def close_connection_pool():
 async def get_pool_stats() -> dict:
     """Get connection pool statistics for the current event loop."""
     loop = asyncio.get_running_loop()
-    
+
     with _pools_lock:
         if loop not in _pools:
             return {"error": "Pool not initialized for this event loop"}
-        
+
         return _pools[loop].get_stats()
+
+
+async def create_override_connection(
+    namespace: str,
+    database: str,
+    url: Optional[str] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> AsyncSurreal:
+    """
+    Create a one-off connection with custom namespace/database.
+
+    This connection is NOT pooled and should be closed after use.
+    Use this for operations that need a different namespace/database
+    than the default configured via environment variables.
+
+    Args:
+        namespace: The SurrealDB namespace to use
+        database: The SurrealDB database to use
+        url: Optional URL override (defaults to SURREAL_URL env var)
+        username: Optional username override (defaults to SURREAL_USER env var)
+        password: Optional password override (defaults to SURREAL_PASSWORD env var)
+
+    Returns:
+        An authenticated AsyncSurreal connection configured for the specified namespace/database
+    """
+    config_url = url or os.environ.get("SURREAL_URL", "")
+    config_username = username or os.environ.get("SURREAL_USER", "")
+    config_password = password or os.environ.get("SURREAL_PASSWORD", "")
+
+    if not config_url:
+        raise ValueError("SURREAL_URL environment variable is required")
+    if not config_username or not config_password:
+        raise ValueError("SURREAL_USER and SURREAL_PASSWORD environment variables are required")
+
+    connection = AsyncSurreal(config_url)
+
+    await connection.signin({
+        "username": config_username,
+        "password": config_password,
+    })
+
+    await connection.use(namespace, database)
+
+    logger.trace(f"Created override connection for {namespace}/{database}")
+    return connection
+
+
+@asynccontextmanager
+async def override_db_connection(namespace: str, database: str):
+    """
+    Context manager for getting a database connection with custom namespace/database.
+
+    This creates a one-off connection (not pooled) that is automatically closed
+    when the context exits. Use this for operations that need a different
+    namespace/database than the default.
+
+    Args:
+        namespace: The SurrealDB namespace to use
+        database: The SurrealDB database to use
+
+    Yields:
+        An authenticated AsyncSurreal connection
+    """
+    connection = await create_override_connection(namespace, database)
+
+    try:
+        yield connection
+    finally:
+        try:
+            await asyncio.wait_for(connection.close(), timeout=5)
+            logger.trace(f"Closed override connection for {namespace}/{database}")
+        except Exception as e:
+            logger.warning(f"Error closing override connection: {e}")

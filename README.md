@@ -21,7 +21,7 @@ The SurrealDB MCP Server bridges the gap between AI assistants and SurrealDB, pr
 - Handle bulk operations efficiently
 - Work with SurrealDB's unique features like record IDs and graph edges
 
-## ( Features
+## Features
 
 - **Full SurrealQL Support**: Execute any SurrealQL query directly
 - **Comprehensive CRUD Operations**: Create, read, update, delete with ease
@@ -30,6 +30,7 @@ The SurrealDB MCP Server bridges the gap between AI assistants and SurrealDB, pr
 - **Smart Updates**: Full updates, merges, and patches
 - **Type-Safe**: Proper handling of SurrealDB's RecordIDs
 - **Connection Pooling**: Efficient database connection management
+- **Multi-Database Support**: Override namespace/database per tool call
 - **Detailed Documentation**: Extensive docstrings for AI comprehension
 
 ## =� Prerequisites
@@ -90,15 +91,24 @@ python -m surreal_mcp
 
 ## � Configuration
 
-The server requires the following environment variables:
+The server uses environment variables for configuration.
+
+### Required Variables (at startup)
 
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `SURREAL_URL` | SurrealDB connection URL | `ws://localhost:8000/rpc` |
 | `SURREAL_USER` | Database username | `root` |
 | `SURREAL_PASSWORD` | Database password | `root` |
-| `SURREAL_NAMESPACE` | SurrealDB namespace | `test` |
-| `SURREAL_DATABASE` | SurrealDB database | `test` |
+
+### Optional Variables (can be overridden per tool call)
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SURREAL_NAMESPACE` | Default SurrealDB namespace | `test` |
+| `SURREAL_DATABASE` | Default SurrealDB database | `test` |
+
+> **Note**: If `SURREAL_NAMESPACE` and `SURREAL_DATABASE` are not set as environment variables, you must provide `namespace` and `database` parameters in each tool call.
 
 ### Setting Environment Variables
 
@@ -163,12 +173,19 @@ Add to your MCP client settings (e.g., Claude Desktop):
 
 ## =' Available Tools
 
+All tools support optional `namespace` and `database` parameters to override the default values from environment variables.
+
 ### 1. query
 Execute raw SurrealQL queries for complex operations.
 
 ```surrealql
 -- Example: Complex query with graph traversal
 SELECT *, ->purchased->product FROM user WHERE age > 25
+```
+
+```python
+# Query with namespace/database override
+query("SELECT * FROM user", namespace="production", database="main")
 ```
 
 ### 2. select
@@ -180,6 +197,9 @@ select("user")
 
 # Get specific user
 select("user", "john")
+
+# Select from a different database
+select("user", namespace="other_ns", database="other_db")
 ```
 
 ### 3. create
@@ -314,6 +334,32 @@ products = insert("product", [
 query("UPDATE product SET on_sale = true WHERE category = 'Electronics'")
 ```
 
+### Multi-Database Operations
+
+You can work with multiple databases in a single session by using the `namespace` and `database` parameters:
+
+```python
+# Create a record in the production database
+create("user", {"name": "Alice"}, namespace="prod", database="main")
+
+# Query from staging database
+select("user", namespace="staging", database="main")
+
+# Copy data between databases
+users = select("user", namespace="staging", database="main")
+for user in users["data"]:
+    create("user", user, namespace="prod", database="main")
+```
+
+**Behavior Summary:**
+
+| Scenario | Result |
+|----------|--------|
+| Env vars set, no params | Uses pooled connection (best performance) |
+| Env vars set, params provided | Uses override connection with specified namespace/database |
+| No env vars, params provided | Uses override connection with specified namespace/database |
+| No env vars, no params | Fails with clear error message |
+
 ## <� Architecture
 
 The server is built with:
@@ -361,9 +407,10 @@ uv run pytest -k "test_create"
 ```
 tests/
 ├── __init__.py
-├── conftest.py         # Fixtures and test configuration
-├── test_tools.py       # Tests for all MCP tools
-└── test_server.py      # Tests for server configuration
+├── conftest.py              # Fixtures and test configuration
+├── test_tools.py            # Tests for all MCP tools
+├── test_server.py           # Tests for server configuration
+└── test_namespace_override.py  # Tests for namespace/database override
 ```
 
 ### Writing Tests
