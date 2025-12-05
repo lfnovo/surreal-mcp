@@ -103,51 +103,88 @@ mcp = FastMCP("SurrealDB MCP Server")
 
 @mcp.tool()
 async def query(
-    query_string: str,
+    queries: List[str],
     namespace: Optional[str] = None,
     database: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Execute a raw SurrealQL query against the connected SurrealDB database.
+    Execute one or more SurrealQL queries against the connected SurrealDB database.
 
-    This tool allows you to run any valid SurrealQL query directly. Use this for complex
+    This tool allows you to run any valid SurrealQL queries directly. Use this for complex
     queries that don't fit the other tool patterns, such as:
     - Complex SELECT queries with JOINs, GROUP BY, or aggregations
     - Custom DEFINE statements for schemas
     - Transaction blocks with BEGIN/COMMIT
     - Graph traversal queries
 
+    Queries are executed sequentially. If a query fails, execution continues with the
+    remaining queries, and the error is captured in that query's result.
+
     Args:
-        query_string: The complete SurrealQL query to execute. Examples:
-            - "SELECT * FROM user WHERE age > 18"
-            - "SELECT *, ->purchase->product FROM user:john"
-            - "BEGIN; CREATE user:alice SET name = 'Alice'; CREATE user:bob SET name = 'Bob'; COMMIT;"
+        queries: A list of SurrealQL queries to execute. Examples:
+            - ["SELECT * FROM user WHERE age > 18"]
+            - ["SELECT * FROM user", "SELECT * FROM product"]
+            - ["CREATE user:alice SET name = 'Alice'", "CREATE user:bob SET name = 'Bob'"]
         namespace: Optional SurrealDB namespace override. If not provided, uses SURREAL_NAMESPACE env var.
         database: Optional SurrealDB database override. If not provided, uses SURREAL_DATABASE env var.
 
     Returns:
         A dictionary containing:
-        - success: Boolean indicating if the query executed successfully
-        - data: The query results (format depends on the query)
-        - error: Error message if the query failed (only present on failure)
+        - success: Boolean indicating if at least one query executed successfully
+        - results: Array of per-query results, each containing:
+            - success: Boolean indicating if this specific query succeeded
+            - data: The query results (only present on success)
+            - error: Error message (only present on failure)
+        - total: Total number of queries executed
+        - succeeded: Number of queries that succeeded
+        - failed: Number of queries that failed
 
     Example:
-        >>> await query("SELECT name, age FROM user WHERE active = true ORDER BY created DESC LIMIT 10")
-        {"success": true, "data": [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]}
-    """
-    try:
-        ns, db = resolve_namespace_database(namespace, database)
-        logger.info(f"Executing query: {query_string[:100]}...")
-        result = await repo_query(query_string, namespace=ns, database=db)
-
-        # Format response
-        return {
-            "success": True,
-            "data": result
+        >>> await query(["SELECT * FROM user", "SELECT * FROM product"])
+        {
+            "success": true,
+            "results": [
+                {"success": true, "data": [{"id": "user:1", "name": "Alice"}]},
+                {"success": true, "data": [{"id": "product:1", "name": "Laptop"}]}
+            ],
+            "total": 2,
+            "succeeded": 2,
+            "failed": 0
         }
-    except Exception as e:
-        logger.error(f"Query failed: {str(e)}")
-        raise Exception(f"SurrealDB query failed: {str(e)}")
+    """
+    if not queries or not isinstance(queries, list):
+        raise ValueError("queries must be a non-empty list of query strings")
+
+    ns, db = resolve_namespace_database(namespace, database)
+
+    results = []
+    succeeded = 0
+    failed = 0
+
+    for query_string in queries:
+        try:
+            logger.info(f"Executing query: {query_string[:100]}...")
+            result = await repo_query(query_string, namespace=ns, database=db)
+            results.append({
+                "success": True,
+                "data": result
+            })
+            succeeded += 1
+        except Exception as e:
+            logger.error(f"Query failed: {str(e)}")
+            results.append({
+                "success": False,
+                "error": f"SurrealDB query failed: {str(e)}"
+            })
+            failed += 1
+
+    return {
+        "success": succeeded > 0,
+        "results": results,
+        "total": len(queries),
+        "succeeded": succeeded,
+        "failed": failed
+    }
 
 
 @mcp.tool()

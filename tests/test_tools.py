@@ -6,41 +6,108 @@ from typing import Dict, Any
 
 class TestQueryTool:
     """Test the query tool."""
-    
+
     @pytest.mark.asyncio
-    async def test_query_simple(self, clean_db):
-        """Test simple query execution."""
+    async def test_query_single(self, clean_db):
+        """Test single query execution."""
         from surreal_mcp.server import query
-        result = await query.fn(query_string="RETURN 1")
+        result = await query.fn(queries=["RETURN 1"])
         assert result["success"] is True
-        assert result["data"] == 1
-    
+        assert result["total"] == 1
+        assert result["succeeded"] == 1
+        assert result["failed"] == 0
+        assert len(result["results"]) == 1
+        assert result["results"][0]["success"] is True
+        assert result["results"][0]["data"] == 1
+
+    @pytest.mark.asyncio
+    async def test_query_multiple(self, clean_db):
+        """Test multiple query execution."""
+        from surreal_mcp.server import query
+        result = await query.fn(queries=["RETURN 1", "RETURN 2", "RETURN 3"])
+        assert result["success"] is True
+        assert result["total"] == 3
+        assert result["succeeded"] == 3
+        assert result["failed"] == 0
+        assert len(result["results"]) == 3
+        assert result["results"][0]["data"] == 1
+        assert result["results"][1]["data"] == 2
+        assert result["results"][2]["data"] == 3
+
     @pytest.mark.asyncio
     async def test_query_info_db(self, clean_db):
         """Test INFO FOR DB query."""
         from surreal_mcp.server import query
-        result = await query.fn(query_string="INFO FOR DB")
+        result = await query.fn(queries=["INFO FOR DB"])
         assert result["success"] is True
-        assert isinstance(result["data"], dict)
-    
+        assert result["results"][0]["success"] is True
+        assert isinstance(result["results"][0]["data"], dict)
+
     @pytest.mark.asyncio
     async def test_query_complex(self, clean_db, created_user):
         """Test complex query with WHERE clause."""
         from surreal_mcp.server import query
         result = await query.fn(
-            query_string=f"SELECT * FROM user WHERE email = '{created_user['email']}'"
+            queries=[f"SELECT * FROM user WHERE email = '{created_user['email']}'"]
         )
         assert result["success"] is True
-        assert len(result["data"]) == 1
-        assert result["data"][0]["email"] == created_user["email"]
-    
+        assert len(result["results"][0]["data"]) == 1
+        assert result["results"][0]["data"][0]["email"] == created_user["email"]
+
     @pytest.mark.asyncio
-    async def test_query_invalid(self, clean_db):
-        """Test invalid query handling."""
+    async def test_query_partial_failure(self, clean_db):
+        """Test that valid queries succeed even when others fail."""
         from surreal_mcp.server import query
-        with pytest.raises(Exception) as exc_info:
-            await query.fn(query_string="INVALID QUERY SYNTAX")
-        assert "SurrealDB query failed" in str(exc_info.value)
+        result = await query.fn(queries=[
+            "RETURN 1",
+            "INVALID QUERY SYNTAX",
+            "RETURN 3"
+        ])
+        assert result["success"] is True  # At least one succeeded
+        assert result["total"] == 3
+        assert result["succeeded"] == 2
+        assert result["failed"] == 1
+        # First query succeeded
+        assert result["results"][0]["success"] is True
+        assert result["results"][0]["data"] == 1
+        # Second query failed
+        assert result["results"][1]["success"] is False
+        assert "error" in result["results"][1]
+        assert "SurrealDB query failed" in result["results"][1]["error"]
+        # Third query succeeded
+        assert result["results"][2]["success"] is True
+        assert result["results"][2]["data"] == 3
+
+    @pytest.mark.asyncio
+    async def test_query_all_fail(self, clean_db):
+        """Test when all queries fail."""
+        from surreal_mcp.server import query
+        result = await query.fn(queries=[
+            "INVALID QUERY 1",
+            "INVALID QUERY 2"
+        ])
+        assert result["success"] is False  # No query succeeded
+        assert result["total"] == 2
+        assert result["succeeded"] == 0
+        assert result["failed"] == 2
+        assert result["results"][0]["success"] is False
+        assert result["results"][1]["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_query_empty_list(self, clean_db):
+        """Test with empty query list."""
+        from surreal_mcp.server import query
+        with pytest.raises(ValueError) as exc_info:
+            await query.fn(queries=[])
+        assert "non-empty list" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_query_invalid_type(self, clean_db):
+        """Test with non-list input."""
+        from surreal_mcp.server import query
+        with pytest.raises(ValueError) as exc_info:
+            await query.fn(queries="SELECT * FROM user")  # String instead of list
+        assert "non-empty list" in str(exc_info.value)
 
 
 class TestSelectTool:
@@ -379,7 +446,7 @@ class TestRelateTool:
         
         # Query the relations
         result = await query.fn(
-            query_string=f"SELECT * FROM {created_user['id']}->likes->product"
+            queries=[f"SELECT * FROM {created_user['id']}->likes->product"]
         )
         assert result["success"] is True
-        assert len(result["data"]) == 3
+        assert len(result["results"][0]["data"]) == 3

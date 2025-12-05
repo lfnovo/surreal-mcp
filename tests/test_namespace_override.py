@@ -63,9 +63,9 @@ class TestQueryToolWithOverride:
         """Test query using default namespace/database from env vars."""
         from surreal_mcp.server import query
 
-        result = await query.fn(query_string="RETURN 1")
+        result = await query.fn(queries=["RETURN 1"])
         assert result["success"] is True
-        assert result["data"] == 1
+        assert result["results"][0]["data"] == 1
 
     @pytest.mark.asyncio
     async def test_query_with_explicit_namespace(self, clean_db):
@@ -77,12 +77,12 @@ class TestQueryToolWithOverride:
         db = os.environ.get("SURREAL_DATABASE")
 
         result = await query.fn(
-            query_string="RETURN 1",
+            queries=["RETURN 1"],
             namespace=ns,
             database=db,
         )
         assert result["success"] is True
-        assert result["data"] == 1
+        assert result["results"][0]["data"] == 1
 
 
 class TestSelectToolWithOverride:
@@ -317,7 +317,7 @@ class TestCrossDatabaseOperations:
 
         # Clean up secondary database
         await query.fn(
-            query_string="DELETE cross_db_test",
+            queries=["DELETE cross_db_test"],
             namespace=ns,
             database=secondary_db,
         )
